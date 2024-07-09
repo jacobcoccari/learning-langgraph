@@ -1,8 +1,5 @@
-# This code is extremely similar to the previous example, but we'll add a
-# checkpointer to the graph to save the state of the chatbot.
-# We will also add the prebuilt ToolNode to the graph, as well
-# as well as tools_condition to route to the tool node if the last message
-# has tool calls.
+# start with the code from the previous example.
+# in this lecture we'll use interrupt_before to break the tool node.
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -52,7 +49,9 @@ graph_builder.add_conditional_edges(
 graph_builder.add_edge("tools", "chatbot")
 graph_builder.add_edge(START, "chatbot")
 
-graph = graph_builder.compile(checkpointer=memory)
+graph = graph_builder.compile(checkpointer=memory,
+                              interrupt_before=["tools"])
+
 config = {"configurable": {"thread_id": "1"}}
 
 from pprint import pprint
@@ -68,28 +67,29 @@ for event in events:
 
 
 snapshot = graph.get_state(config)
-pprint(snapshot)
-
-
-user_input = "What event did I just ask about?"
-
-events = graph.stream(
-    {"messages": [("user", user_input)]}, config, stream_mode="values"
-)
-for event in events:
-    event["messages"][-1].pretty_print()
-
-snapshot = graph.get_state(config)
 print(snapshot)
+# Notice how the "next" node is sect to "action" 
+print(snapshot.next)
 
-# The only difference is we change the `thread_id` here to "2" instead of "1"
-events = graph.stream(
-    {"messages": [("user", user_input)]},
-    {"configurable": {"thread_id": "2"}},
-    stream_mode="values",
-)
+existing_message = snapshot.values["messages"][-1]
+print(existing_message.tool_calls)
+
+# When you stop this, you see "stop reason"  = "tool use" because that is what we specified it to stop on.
+
+events = graph.stream(None, config, stream_mode="values")
 for event in events:
-    event["messages"][-1].pretty_print()
+    if "messages" in event:
+        event["messages"][-1].pretty_print()
 
-snapshot = graph.get_state({"configurable": {"thread_id": "2"}})
-print(snapshot)
+
+
+# user_input = "What event did I just ask about?"
+
+# events = graph.stream(
+#     {"messages": [("user", user_input)]}, config, stream_mode="values"
+# )
+# for event in events:
+#     event["messages"][-1].pretty_print()
+
+# snapshot = graph.get_state(config)
+# print(snapshot)
