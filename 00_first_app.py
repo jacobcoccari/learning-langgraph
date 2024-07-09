@@ -1,3 +1,6 @@
+# tutorial URL: https://langchain-ai.github.io/langgraph/tutorials/introduction/
+
+
 import getpass
 import os
 
@@ -25,10 +28,8 @@ from langchain_anthropic import ChatAnthropic
 
 llm = ChatAnthropic(model="claude-3-haiku-20240307")
 
-
 def chatbot(state: State):
     return {"messages": [llm.invoke(state["messages"])]}
-
 
 # The first argument is the unique node name
 # The second argument is the function or object that will be called whenever
@@ -47,3 +48,4 @@ while True:
     for event in graph.stream({"messages": ("user", user_input)}):
         for value in event.values():
             print("Assistant:", value["messages"][-1].content)
+
