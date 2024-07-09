@@ -68,10 +68,12 @@ for event in events:
 snapshot = graph.get_state(config)
 tool_object = snapshot.values["messages"][-1]
 tool_object.type = 'tool'
-
 print(snapshot.values['messages'])
+print("____________________________________________")
 
-breakpoint()
+for message in snapshot.values['messages']: 
+    print(message)
+
 
 # tool_call_data = existing_message.content[1]
 # print(tool_call_data)
