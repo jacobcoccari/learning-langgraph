@@ -1,30 +1,34 @@
-from typing import Annotated, Literal
-
 from dotenv import load_dotenv
 load_dotenv()
+
+from typing import Annotated, Literal
+from typing_extensions import TypedDict
 
 from langchain_anthropic import ChatAnthropic
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.messages import ToolMessage
-from typing_extensions import TypedDict
 
 from langgraph.graph import StateGraph
 from langgraph.graph.message import add_messages
-from langgraph.prebuilt import ToolNode, tools_condition
 
 import json
 
-
+# We need to first create a StategGraph to save the state of our chatbot.
+# to do this, we define "State" which is a TypedDict that will be used to
+# store the state of the chatbot.
 class State(TypedDict):
     messages: Annotated[list, add_messages]
 
-
+# We then create a StateGraph initialized with the State, the typed dictionary we defined above. 
 graph_builder = StateGraph(State)
 
-
+# We nopw need to set up our tools. Since we want to connect our chatbot to
+# A search engine, we will use the TavilySearchResults tool. 
 tool = TavilySearchResults(max_results=2)
 tools = [tool]
+# We will also set up a LLM that we will call, 
 llm = ChatAnthropic(model="claude-3-haiku-20240307")
+# and bind the tools to the language model. 
 llm_with_tools = llm.bind_tools(tools)
 
 
