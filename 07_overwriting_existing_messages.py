@@ -63,9 +63,9 @@ from langchain_core.messages import AIMessage
 
 snapshot = graph.get_state(config)
 existing_message = snapshot.values["messages"][-1]
-print("Original")
-print("Message ID", existing_message.id)
-print(existing_message.tool_calls[0])
+# print("Original")
+# print("Message ID", existing_message.id)
+# print(existing_message.tool_calls[0])
 new_tool_call = existing_message.tool_calls[0].copy()
 new_tool_call["args"]["query"] = "LangGraph human-in-the-loop workflow"
 new_message = AIMessage(
@@ -75,10 +75,32 @@ new_message = AIMessage(
     id=existing_message.id,
 )
 
-print("Updated")
-print(new_message.tool_calls[0])
-print("Message ID", new_message.id)
+# print("Updated")
+# print(new_message.tool_calls[0])
+# print("Message ID", new_message.id)
+# for this config, we'll replace  the existing message with the new one.
+# in the current state. 
 graph.update_state(config, {"messages": [new_message]})
 
-print("\n\nTool calls")
-graph.get_state(config).values["messages"][-1].tool_calls
+# print("\n\nTool calls")
+# print(graph.get_state(config).values["messages"][-1].tool_calls)
+
+
+events = graph.stream(None, config, stream_mode="values")
+for event in events:
+    if "messages" in event:
+        event["messages"][-1].pretty_print()
+
+events = graph.stream(
+    {
+        "messages": (
+            "user",
+            "Remember what I'm learning about?",
+        )
+    },
+    config,
+    stream_mode="values",
+)
+for event in events:
+    if "messages" in event:
+        event["messages"][-1].pretty_print()
