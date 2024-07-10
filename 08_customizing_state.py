@@ -5,11 +5,12 @@ load_dotenv()
 
 from langchain_anthropic import ChatAnthropic
 from langchain_community.tools.tavily_search import TavilySearchResults
-from langchain_core.messages import BaseMessage
+from langchain_core.messages import BaseMessage, AIMessage, ToolMessage
+from langchain_core.pydantic_v1 import BaseModel
 from typing_extensions import TypedDict
 
 from langgraph.checkpoint.sqlite import SqliteSaver
-from langgraph.graph import StateGraph, START
+from langgraph.graph import StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 
@@ -19,8 +20,6 @@ class State(TypedDict):
     # This flag is new
     ask_human: bool
 
-from langchain_core.pydantic_v1 import BaseModel
-
 
 class RequestAssistance(BaseModel):
     """Escalate the conversation to an expert. Use this if you are unable to assist directly or if the user requires support beyond your permissions.
@@ -29,6 +28,7 @@ class RequestAssistance(BaseModel):
     """
 
     request: str
+
 
 tool = TavilySearchResults(max_results=2)
 tools = [tool]
@@ -47,12 +47,11 @@ def chatbot(state: State):
         ask_human = True
     return {"messages": [response], "ask_human": ask_human}
 
+
 graph_builder = StateGraph(State)
 
 graph_builder.add_node("chatbot", chatbot)
 graph_builder.add_node("tools", ToolNode(tools=[tool]))
-
-from langchain_core.messages import AIMessage, ToolMessage
 
 
 def create_response(response: str, ai_message: AIMessage):
@@ -81,6 +80,7 @@ def human_node(state: State):
 
 graph_builder.add_node("human", human_node)
 
+
 def select_next_node(state: State):
     if state["ask_human"]:
         return "human"
@@ -93,31 +93,37 @@ graph_builder.add_conditional_edges(
     select_next_node,
     {"human": "human", "tools": "tools", "__end__": "__end__"},
 )
-
-# The rest is the same
 graph_builder.add_edge("tools", "chatbot")
 graph_builder.add_edge("human", "chatbot")
-graph_builder.add_edge(START, "chatbot")
+graph_builder.set_entry_point("chatbot")
 memory = SqliteSaver.from_conn_string(":memory:")
 graph = graph_builder.compile(
     checkpointer=memory,
-    # We interrupt before 'human' here instead.
     interrupt_before=["human"],
 )
 
-user_input = "Please request assistance with the following question"
+user_input = "I need some expert guidance for building this AI agent. Could you request assistance for me?"
 config = {"configurable": {"thread_id": "1"}}
 # The config is the **second positional argument** to stream() or invoke()!
+events = graph.stream(
+    {"messages": [("user", user_input)]}, config, stream_mode="values"
+)
+for event in events:
+    if "messages" in event:
+        event["messages"][-1].pretty_print()
 
+snapshot = graph.get_state(config)
+snapshot.next
 
-while True:
-    user_input = input("User: ")
-    if user_input.lower() in ["quit", "exit", "q"]:
-        print("Goodbye!")
-        break
-    events = graph.stream(
-        {"messages": [("user", user_input)]}, config, stream_mode="values"
-    )
-    for event in events:
-        if "messages" in event:
-            event["messages"][-1].pretty_print()
+ai_message = snapshot.values["messages"][-1]
+human_response = (
+    "We, the experts are here to help! We'd recommend you check out LangGraph to build your agent."
+    " It's much more reliable and extensible than simple autonomous agents."
+)
+tool_message = create_response(human_response, ai_message)
+graph.update_state(config, {"messages": [tool_message]})
+
+events = graph.stream(None, config, stream_mode="values")
+for event in events:
+    if "messages" in event:
+        event["messages"][-1].pretty_print()
